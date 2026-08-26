@@ -1,6 +1,16 @@
 composer.phar
 /vendor/
 
+# Generated protobuf/gRPC code (regenerate with `composer proto`)
+/generated/
+
+# Downloaded protoc-gen-php-grpc binary (regenerate with `rr download-protoc-binary`)
+/protoc-gen-php-grpc.exe
+
+# Downloaded RoadRunner server binary (regenerate with `rr get-binary`)
+/rr.exe
+/rr
+
 # Commit your application's lock file https://getcomposer.org/doc/01-basic-usage.md#commit-your-composer-lock-file-to-version-control
 # You may choose to ignore a library lock file http://getcomposer.org/doc/02-libraries.md#lock-file
 # composer.lock

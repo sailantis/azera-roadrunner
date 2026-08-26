@@ -1,0 +1,66 @@
+# RoadRunner configuration for Azera.
+#
+# This file enables both an HTTP listener (for your website) and a gRPC
+# listener (for RPC services) in a single RoadRunner process, sharing one
+# persistent PHP worker pool.
+#
+# Start the server with:  ./rr serve
+
+version: "3"
+
+server:
+  # Entry point that boots the Azera AppContext and dispatches to the
+  # correct worker loop depending on the request mode.
+  command: "php azera-worker.php"
+
+
+http:
+  # Host and port for the website.
+  address: "0.0.0.0:8001"
+
+  # Static assets served directly by RoadRunner (bypass the PHP worker).
+  middleware: [ "static", "gzip" ]
+  static:
+    dir: "public"
+    forbid: [ ".php", ".htaccess" ]
+    allow: [ ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2", ".html" ]
+
+  pool:
+    num_workers: 0   # 0 = number of logical CPUs
+    supervisor:
+      # Hard limit on a single request's lifetime. Restart the worker if a
+      # request exceeds this (helps recover from stuck code).
+      exec_ttl: 30s
+      # Soft limit on worker memory. Restart a worker that exceeds this.
+      max_worker_memory: 256
+
+grpc:
+  # Host and port for gRPC services.
+  listen: "tcp://127.0.0.1:9001"
+
+  # Proto files describing your gRPC services.
+  proto:
+    - "proto/**/*.proto"
+
+  pool:
+    num_workers: 0   # 0 = number of logical CPUs
+
+# ---- Development convenience ----------------------------------------------
+# Automatically restart workers when source files change. Set to an empty
+# map ("{}") in production to disable.
+reload:
+  interval: 1s
+  patterns: [ ".php" ]
+  services:
+    http:
+      dirs: [ "app", "config", "src", "views" ]
+      recursive: true
+      ignore: [ "vendor" ]
+      patterns: [ ".php" ]
+    grpc:
+      dirs: [ "app", "config", "src" ]
+      recursive: true
+      ignore: [ "vendor" ]
+      patterns: [ ".php", ".proto" ]
+# ----------------------------------------------------------------------------
+
