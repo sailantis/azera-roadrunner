@@ -26,7 +26,7 @@ Download the RoadRunner binary:
 ./vendor/bin/rr get-binary
 ```
 
-> Requires PHP >= 8.1 and the `sailantis/azera-framework` package.
+> Requires PHP >= 8.2 and the `sailantis/azera-framework` package.
 
 ---
 
