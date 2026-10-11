@@ -31,6 +31,27 @@ class TestController extends \Azera\Core\Controller
     {
         (new DebugRuntime(DumpOptions::create()->haltWithException()))->dumpAndDie('html', ['marker-value']);
     }
+
+    /**
+     * Writes to the session, so the worker has one to carry back to the client.
+     */
+    public function rememberAction(string $value): string
+    {
+        session_start();
+        $_SESSION['remembered'] = $value;
+
+        return 'stored';
+    }
+
+    /**
+     * Reads back what `rememberAction` wrote, to prove the session survived.
+     */
+    public function recallAction(): string
+    {
+        session_start();
+
+        return (string) ($_SESSION['remembered'] ?? 'nothing');
+    }
 }
 
 final class RoadRunnerHttpWorkerTest extends TestCase
@@ -92,5 +113,75 @@ final class RoadRunnerHttpWorkerTest extends TestCase
         $response = $worker->dispatch($psrRequest);
 
         $this->assertSame(404, $response->getStatusCode());
+    }
+
+    /**
+     * A request that starts a session must be given the cookie naming it, since
+     * no SAPI is writing one.
+     */
+    public function testASessionStartedByTheApplicationIsSentAsACookie(): void
+    {
+        $worker = $this->sessionWorker();
+
+        $response = $worker->dispatch(new ServerRequest('GET', 'https://example.com/remember/ada'));
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertTrue($response->hasHeader('Set-Cookie'));
+
+        $cookie = $response->getHeaderLine('Set-Cookie');
+        $this->assertStringStartsWith(rawurlencode((string) session_name()) . '=', $cookie);
+    }
+
+    /**
+     * The whole point: the next request, presenting that cookie, sees the data
+     * the previous one wrote. Under FPM/PHP-CGI this is the SAPI's job; in a
+     * worker it is this worker's.
+     */
+    public function testASessionSurvivesIntoTheNextRequest(): void
+    {
+        $worker = $this->sessionWorker();
+
+        $stored = $worker->dispatch(new ServerRequest('GET', 'https://example.com/remember/ada'));
+        $cookie = $stored->getHeaderLine('Set-Cookie');
+        $id = explode(';', explode('=', $cookie, 2)[1])[0];
+
+        // A later request by the same client, carrying that cookie back.
+        $recalled = $worker->dispatch(
+            (new ServerRequest('GET', 'https://example.com/recall'))->withHeader('Cookie', (string) session_name() . '=' . $id)
+        );
+
+        $this->assertSame('ada', (string) $recalled->getBody());
+        $this->assertFalse(
+            $recalled->hasHeader('Set-Cookie'),
+            'a client that already holds the id is not sent another cookie'
+        );
+    }
+
+    /**
+     * `session_id()` outlives a request in a persistent process, so a client
+     * presenting no cookie must not inherit the previous client's session.
+     */
+    public function testAClientWithNoCookieDoesNotInheritThePreviousClientsSession(): void
+    {
+        $worker = $this->sessionWorker();
+
+        $worker->dispatch(new ServerRequest('GET', 'https://example.com/remember/first-client'));
+
+        $second = $worker->dispatch(new ServerRequest('GET', 'https://example.com/recall'));
+
+        $this->assertSame('nothing', (string) $second->getBody());
+    }
+
+    private function sessionWorker(): RoadRunnerHttpWorker
+    {
+        $ctx        = AppContext::instance();
+        $router     = $ctx->router();
+        $dispatcher = new Dispatcher();
+        $dispatcher->setBaseNamespace(__NAMESPACE__);
+
+        $router->add('GET', '/remember/{value}', __NAMESPACE__ . '\TestController::rememberAction');
+        $router->add('GET', '/recall', __NAMESPACE__ . '\TestController::recallAction');
+
+        return new RoadRunnerHttpWorker($ctx, $router, $dispatcher);
     }
 }

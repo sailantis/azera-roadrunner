@@ -143,4 +143,38 @@ final class PsrToAzeraRequest
         $values = $psr->getHeader($name);
         return $values[0] ?? null;
     }
+
+    /**
+     * The cookies the client sent, as PHP would have put them in `$_COOKIE`.
+     *
+     * Nothing fills `$_COOKIE` in a worker, so it has to be reconstructed —
+     * including for the session, which reads the id out of it.
+     *
+     * @return array<string, string>
+     */
+    public static function cookies(ServerRequestInterface $psr): array
+    {
+        $header = self::firstHeader($psr, 'cookie');
+        if ($header === null || $header === '') {
+            return [];
+        }
+
+        $cookies = [];
+        foreach (explode(';', $header) as $pair) {
+            $separator = strpos($pair, '=');
+            if ($separator === false) {
+                continue;
+            }
+
+            $name = urldecode(trim(substr($pair, 0, $separator)));
+            if ($name === '') {
+                continue;
+            }
+
+            // A repeated name: the first wins, as in PHP.
+            $cookies[$name] ??= urldecode(substr($pair, $separator + 1));
+        }
+
+        return $cookies;
+    }
 }

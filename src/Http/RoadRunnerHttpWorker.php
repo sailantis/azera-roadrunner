@@ -9,6 +9,7 @@ use Azera\Core\Dispatcher;
 use Azera\Core\Router;
 use Azera\Http\Request as AzeraRequest;
 use Azera\Http\Response as AzeraResponse;
+use Azera\Http\WorkerSession;
 use Azera\RR\Http\Adapter\PsrToAzeraRequest;
 use Clarity\Debug\DumpHaltException;
 use Closure;
@@ -41,6 +42,7 @@ final class RoadRunnerHttpWorker
         private Dispatcher $dispatcher,
         private ?PSR7Worker $psr7 = null,
         private ?Closure $notFoundHandler = null,
+        private readonly WorkerSession $session = new WorkerSession(),
     ) {
         $this->psr7 = $psr7;
     }
@@ -89,7 +91,11 @@ final class RoadRunnerHttpWorker
                 // Send an error response and keep the worker alive.
                 $psr7->respond(new Response(500, [], 'Internal Server Error'));
             } finally {
-                // Reset per-request state BEFORE reading the next request.
+                // Reset per-request state BEFORE reading the next request. The
+                // session is part of that state: PHP leaves `session_id()` and
+                // `$_SESSION` behind in a long-lived process, and the next
+                // client must inherit neither.
+                $this->session->end();
                 $this->context->clearRequestScope();
             }
         }
@@ -119,6 +125,11 @@ final class RoadRunnerHttpWorker
         // Make the translated request available on the context.
         $this->context->set(AzeraRequest::class, $azeraRequest);
 
+        // Adopt the client's session before the application runs, so the
+        // session middleware finds `$_COOKIE` the way it would under FPM.
+        $_COOKIE = PsrToAzeraRequest::cookies($request);
+        $this->session->begin($_COOKIE);
+
         $path   = $azeraRequest->path();
         $method = $azeraRequest->method();
 
@@ -141,8 +152,45 @@ final class RoadRunnerHttpWorker
 
         return new Response(
             $response->getStatus(),
-            $response->getHeaders(),
+            // The session cookie is the one header PHP would have written for
+            // free under a SAPI. It is added to the map before the PSR-7
+            // response is built, since a PSR-7 header bag can hold repeated
+            // Set-Cookie values.
+            self::withSessionCookie($response->getHeaders(), $this->session->cookie()),
             $response->getBody()
         );
+    }
+
+    /**
+     * Put the session cookie on the application's header map.
+     *
+     * A new `Set-Cookie` rather than a replacement: an application may set
+     * cookies of its own, and both belong on the response.
+     *
+     * @param array<string, string> $headers
+     * @return array<string, string>
+     */
+    private static function withSessionCookie(array $headers, ?string $cookie): array
+    {
+        if ($cookie === null) {
+            return $headers;
+        }
+
+        $key = 'Set-Cookie';
+
+        // A PSR-7 header name is case-insensitive, so an application that
+        // already used a different spelling must not get a second entry.
+        foreach ($headers as $name => $value) {
+            if (strcasecmp((string) $name, $key) === 0) {
+                unset($headers[$name]);
+                $headers[$key] = $value . "\n" . $cookie;
+
+                return $headers;
+            }
+        }
+
+        $headers[$key] = $cookie;
+
+        return $headers;
     }
 }
