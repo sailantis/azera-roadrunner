@@ -34,13 +34,11 @@ final class PsrToAzeraRequest
         // clientIp() respect X-Forwarded-* exactly as they do under PHP-FPM.
         $request = new AzeraRequest($server, $get, $post, $files, true);
 
-        // php://input is not available inside a RoadRunner worker, so inject
-        // the PSR-7 body into Azera's raw-body cache via reflection. This
-        // makes body() and jsonBody() behave as they do under PHP-FPM.
-        $body = (string) $psr->getBody();
-        if ($body !== '') {
-            self::setRawBody($request, $body);
-        }
+        // php://input is not available inside a RoadRunner worker, so hand
+        // Azera the body explicitly. Set it even when empty: `body()` only
+        // falls back to php://input while the value is null, and in a worker
+        // that fallback would read the protocol stream rather than the request.
+        $request->setRawBody((string) $psr->getBody());
 
         return $request;
     }
@@ -138,17 +136,6 @@ final class PsrToAzeraRequest
         }
 
         return $tmp;
-    }
-
-    /**
-     * Inject the request body into Azera's rawBody cache.
-     */
-    private static function setRawBody(AzeraRequest $request, string $body): void
-    {
-        $ref  = new \ReflectionObject($request);
-        $prop = $ref->getProperty('rawBody');
-        $prop->setAccessible(true);
-        $prop->setValue($request, $body);
     }
 
     private static function firstHeader(ServerRequestInterface $psr, string $name): ?string
