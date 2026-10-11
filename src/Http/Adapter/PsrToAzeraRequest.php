@@ -65,10 +65,30 @@ final class PsrToAzeraRequest
                     ?? '',
         ];
 
-        // Map PSR-7 headers into the HTTP_* convention Azera uses.
+        // Map PSR-7 headers into the CGI server variables Azera reads.
+        //
+        // Two of them are not prefixed. The CGI specification gives Content-Type
+        // and Content-Length unprefixed names, and Azera reads `CONTENT_TYPE`
+        // directly in contentType() and isJson(). Mapping every header to
+        // `HTTP_*` therefore left `CONTENT_TYPE` absent, and a JSON body was
+        // never recognised as JSON — `isJson()` returned false while
+        // `header('Content-Type')` returned the value from `HTTP_CONTENT_TYPE`,
+        // so the two disagreed about the same request.
         foreach ($psr->getHeaders() as $name => $values) {
+            $value = implode(', ', $values);
+
+            if (strcasecmp($name, 'Content-Type') === 0) {
+                $server['CONTENT_TYPE'] = $value;
+                continue;
+            }
+
+            if (strcasecmp($name, 'Content-Length') === 0) {
+                $server['CONTENT_LENGTH'] = $value;
+                continue;
+            }
+
             $key = 'HTTP_' . strtoupper(str_replace('-', '_', $name));
-            $server[$key] = implode(', ', $values);
+            $server[$key] = $value;
         }
 
         // Mirror nginx's HTTPS=on when TLS is terminated upstream, so code

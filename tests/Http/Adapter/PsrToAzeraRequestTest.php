@@ -30,15 +30,39 @@ final class PsrToAzeraRequestTest extends TestCase
         $this->assertSame(['name' => 'Ada'], $azera->post());
     }
 
-    public function testMapsHeadersToHttpConvention(): void
+    /**
+     * Content-Type must land in `CONTENT_TYPE`, the name Azera reads.
+     *
+     * Mapping it to `HTTP_CONTENT_TYPE` instead — which this adapter used to do —
+     * left `CONTENT_TYPE` absent, so `isJson()` returned false and a JSON body was
+     * never recognised as JSON. `header('Content-Type')` still answered, because
+     * the framework now knows both names, which is exactly why this is asserted
+     * through the accessors that read the server array directly.
+     */
+    public function testContentTypeIsMappedToItsCgiName(): void
+    {
+        $psr = new ServerRequest('POST', 'https://example.com/', [
+            'Content-Type' => 'application/json',
+        ], Stream::create('{"a":1}'));
+
+        $azera = PsrToAzeraRequest::convert($psr);
+
+        $this->assertSame('application/json', $azera->contentType());
+        $this->assertTrue($azera->isJson());
+        $this->assertSame('application/json', $azera->header('Content-Type'));
+    }
+
+    public function testOrdinaryHeadersStillUseTheHttpConvention(): void
     {
         $psr = new ServerRequest('GET', 'https://example.com/', [
-            'Content-Type' => 'text/html',
+            'X-Custom' => 'yes',
+            'Accept'   => 'application/json',
         ]);
 
         $azera = PsrToAzeraRequest::convert($psr);
 
-        $this->assertSame('text/html', $azera->header('Content-Type'));
+        $this->assertSame('yes', $azera->header('X-Custom'));
+        $this->assertSame('application/json', $azera->header('Accept'));
     }
 
     public function testTrustsProxyHeadersForSchemeHostAndClientIp(): void
