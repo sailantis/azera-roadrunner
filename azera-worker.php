@@ -40,6 +40,9 @@ $ctx = WorkerBootstrap::boot($projectRoot);
 // ---------------------------------------------------------------------------
 switch (getenv('RR_MODE')) {
     case 'http':
+        // dd() halts the request with a 500 response instead of exiting the worker.
+        WorkerBootstrap::enableDumpHalt($ctx);
+
         $worker = new RoadRunnerHttpWorker(
             $ctx,
             $ctx->router(),

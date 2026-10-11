@@ -7,6 +7,7 @@ namespace Azera\RR;
 use Azera\AppContext;
 use Azera\Boot\BootstrapDiscovery;
 use Azera\Boot\BootstrapResolver;
+use Azera\Core\Engines\ClarityEngine;
 
 /**
  * Bootstraps the Azera AppContext for a RoadRunner worker.
@@ -44,5 +45,23 @@ final class WorkerBootstrap
         }
 
         return AppContext::instance();
+    }
+
+    /**
+     * Turn on dump-halt for the HTTP worker: `dd()` then throws a
+     * DumpHaltException, which the HTTP worker answers with a 500 response
+     * instead of exiting the long-lived process. No-op when the view engine
+     * is not Clarity or debug mode is off.
+     *
+     * Call only for the HTTP worker. The gRPC worker does not catch the
+     * exception, so halt mode must stay off there.
+     */
+    public static function enableDumpHalt(AppContext $ctx): void
+    {
+        $view = $ctx->view();
+
+        if ($view instanceof ClarityEngine) {
+            $view->getDebugOptions()?->haltWithException(true);
+        }
     }
 }

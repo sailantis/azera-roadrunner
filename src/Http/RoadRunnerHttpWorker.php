@@ -10,6 +10,7 @@ use Azera\Core\Router;
 use Azera\Http\Request as AzeraRequest;
 use Azera\Http\Response as AzeraResponse;
 use Azera\RR\Http\Adapter\PsrToAzeraRequest;
+use Clarity\Debug\DumpHaltException;
 use Closure;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\Response;
@@ -81,6 +82,9 @@ final class RoadRunnerHttpWorker
             try {
                 $response = $this->dispatch($request);
                 $psr7->respond($response);
+            } catch (DumpHaltException $e) {
+                // dd() in halt mode: the dump is the response, and the worker stays alive.
+                $psr7->respond(new Response(500, ['Content-Type' => self::dumpContentType($e->context)], $e->output));
             } catch (Throwable $e) {
                 // Send an error response and keep the worker alive.
                 $psr7->respond(new Response(500, [], 'Internal Server Error'));
@@ -89,6 +93,18 @@ final class RoadRunnerHttpWorker
                 $this->context->clearRequestScope();
             }
         }
+    }
+
+    /**
+     * Maps a dd() escape context to the response Content-Type.
+     */
+    private static function dumpContentType(string $context): string
+    {
+        return match ($context) {
+            'js'    => 'application/javascript; charset=UTF-8',
+            'css'   => 'text/css; charset=UTF-8',
+            default => 'text/html; charset=UTF-8',
+        };
     }
 
     /**

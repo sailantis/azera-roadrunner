@@ -57,7 +57,13 @@ RoadRunner (Go)
 ```
 
 Both loops share the same bootstrapped `AppContext` (via `Azera\RR\WorkerBootstrap`) and reset per-request
+Both loops share the same bootstrapped `AppContext` (via `Azera\RR\WorkerBootstrap`) and reset per-request
 state after every request.
+
+The HTTP worker also turns on Clarity's dump-halt mode (`WorkerBootstrap::enableDumpHalt()`), so a `dd()`
+call in debug mode answers with a 500 response that contains the dump, instead of exiting the worker. The gRPC
+worker does not enable it.
+
 
 ### HTTP worker
 
