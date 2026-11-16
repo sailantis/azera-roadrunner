@@ -9,7 +9,7 @@ use Azera\Core\Dispatcher;
 use Azera\Core\Router;
 use Azera\Http\Request as AzeraRequest;
 use Azera\Http\Response as AzeraResponse;
-use Azera\Http\WorkerSession;
+use Azera\RR\Http\WorkerSession;
 use Azera\RR\Http\Adapter\PsrToAzeraRequest;
 use Clarity\Debug\DumpHaltException;
 use Closure;

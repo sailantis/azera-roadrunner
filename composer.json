@@ -3,13 +3,23 @@
   "description": "Application-server adapter that lets Azera run on RoadRunner. Serves HTTP and gRPC from persistent PHP workers that reuse the Azera AppContext DI container, Router, Dispatcher and middleware pipeline.",
   "type": "library",
   "license": "MIT",
+  "homepage": "https://github.com/sailantis/azera-roadrunner",
+  "support": {
+    "issues": "https://github.com/sailantis/azera-roadrunner/issues",
+    "source": "https://github.com/sailantis/azera-roadrunner"
+  },
+  "authors": [
+    {
+      "name": "Sailantis"
+    }
+  ],
   "repositories": [
     { "type": "path", "url": "../azera-framework" },
     { "type": "path", "url": "../clarity-engine" }
   ],
   "require": {
     "php": ">=8.2",
-    "sailantis/azera-framework": "dev-main",
+    "sailantis/azera-framework": "^0.4.1 || dev-main",
     "spiral/roadrunner": "^2025.1",
     "spiral/roadrunner-http": "^3.5",
     "spiral/roadrunner-grpc": "^3.0",

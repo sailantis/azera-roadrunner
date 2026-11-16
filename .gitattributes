@@ -1,0 +1,12 @@
+# Keep repository-only files out of the dist zips Packagist serves.
+# A consuming application needs src/, bin/, composer.json, the README and the
+# LICENSE. `.rr.yaml` and `examples/` are kept because the README points at them.
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/.github export-ignore
+/tests export-ignore
+/generated export-ignore
+/phpunit.xml export-ignore
+/.phpunit.cache export-ignore
+/.phpunit.result.cache export-ignore
+/composer.lock export-ignore
