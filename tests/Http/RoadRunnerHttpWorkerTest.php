@@ -52,6 +52,19 @@ class TestController extends \Azera\Core\Controller
 
         return (string) ($_SESSION['remembered'] ?? 'nothing');
     }
+
+    /**
+     * Sets a cookie of its own and starts a session, which makes the worker add a
+     * second `Set-Cookie` value to the same field.
+     */
+    public function twoCookiesAction(): \Azera\Http\Response
+    {
+        session_start();
+        $_SESSION['remembered'] = 'both';
+
+        return \Azera\Http\Response::text('ok')
+            ->addCookie(\Azera\Http\Cookie::create('theme')->set('dark'));
+    }
 }
 
 final class RoadRunnerHttpWorkerTest extends TestCase
@@ -170,6 +183,29 @@ final class RoadRunnerHttpWorkerTest extends TestCase
         $second = $worker->dispatch(new ServerRequest('GET', 'https://example.com/recall'));
 
         $this->assertSame('nothing', (string) $second->getBody());
+    }
+
+    /**
+     * An application cookie plus the session cookie are two `Set-Cookie` values
+     * on one field. Folding them into a single line, as a newline-joined string
+     * would, is rejected by a PSR-7 response — the whole response would 500.
+     */
+    public function testAnApplicationCookieAndTheSessionCookieBothSurvive(): void
+    {
+        $ctx        = AppContext::instance();
+        $router     = new Router();
+        $dispatcher = new Dispatcher();
+        $dispatcher->setBaseNamespace(__NAMESPACE__);
+        $router->add('GET', '/two-cookies', __NAMESPACE__ . '\TestController::twoCookiesAction');
+
+        $response = (new RoadRunnerHttpWorker($ctx, $router, $dispatcher))
+            ->dispatch(new ServerRequest('GET', 'https://example.com/two-cookies'));
+
+        $cookies = $response->getHeader('Set-Cookie');
+
+        $this->assertCount(2, $cookies);
+        $this->assertSame('theme=dark; Path=/; HttpOnly', $cookies[0]);
+        $this->assertStringStartsWith(rawurlencode((string) session_name()) . '=', $cookies[1]);
     }
 
     private function sessionWorker(): RoadRunnerHttpWorker

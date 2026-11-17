@@ -112,12 +112,18 @@ final class AzeraToPsrResponseTest extends TestCase
     {
         $azera = (new AzeraResponse())
             ->setStatus(201)
-            ->setHeader('Content-Type', 'application/json')
+            ->replaceHeader('Content-Type: application/json')
             ->write('{"ok":true}');
+
+        $headers = [];
+        foreach ($azera->getHeaderLines() as $line) {
+            [$name, $value] = explode(': ', $line, 2);
+            $headers[$name] = $value;
+        }
 
         $psr = new Psr7Response(
             $azera->getStatus(),
-            $azera->getHeaders(),
+            $headers,
             $azera->getBody()
         );
 

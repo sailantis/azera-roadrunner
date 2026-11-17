@@ -152,10 +152,10 @@ final class RoadRunnerHttpWorker
 
         return new Response(
             $response->getStatus(),
-            // The session cookie is the one header PHP would have written for
-            // free under a SAPI. It is added to the map before the PSR-7
-            // response is built, since a PSR-7 header bag can hold repeated
-            // Set-Cookie values.
+            // `getHeaders()` is already the shape a PSR-7 header bag wants:
+            // `name => list<string>`, so a second `Set-Cookie` stays a second
+            // value instead of being folded into one malformed line. The
+            // session cookie is one more value on that field.
             self::withSessionCookie($response->getHeaders(), $this->session->cookie()),
             $response->getBody()
         );
@@ -164,11 +164,11 @@ final class RoadRunnerHttpWorker
     /**
      * Put the session cookie on the application's header map.
      *
-     * A new `Set-Cookie` rather than a replacement: an application may set
+     * A new `Set-Cookie` value rather than a replacement: an application may set
      * cookies of its own, and both belong on the response.
      *
-     * @param array<string, string> $headers
-     * @return array<string, string>
+     * @param array<string, list<string>> $headers
+     * @return array<string, list<string>>
      */
     private static function withSessionCookie(array $headers, ?string $cookie): array
     {
@@ -180,16 +180,16 @@ final class RoadRunnerHttpWorker
 
         // A PSR-7 header name is case-insensitive, so an application that
         // already used a different spelling must not get a second entry.
-        foreach ($headers as $name => $value) {
+        foreach ($headers as $name => $values) {
             if (strcasecmp((string) $name, $key) === 0) {
                 unset($headers[$name]);
-                $headers[$key] = $value . "\n" . $cookie;
+                $headers[$key] = [...$values, $cookie];
 
                 return $headers;
             }
         }
 
-        $headers[$key] = $cookie;
+        $headers[$key] = [$cookie];
 
         return $headers;
     }

@@ -32,7 +32,11 @@ final class PsrToAzeraRequest
         // RoadRunner typically sits behind a reverse proxy (nginx). Enable the
         // framework's built-in proxy-header handling so scheme()/host()/port()/
         // clientIp() respect X-Forwarded-* exactly as they do under PHP-FPM.
-        $request = new AzeraRequest($server, $get, $post, $files, true);
+        //
+        // The cookies are handed over explicitly: the framework's `Cookies` jar
+        // reads through the request rather than `$_COOKIE`, so they must be on it
+        // whether or not the worker installs the CGI superglobals.
+        $request = new AzeraRequest($server, $get, $post, $files, true, self::cookies($psr));
 
         // php://input is not available inside a RoadRunner worker, so hand
         // Azera the body explicitly. Set it even when empty: `body()` only
